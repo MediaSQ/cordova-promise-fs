@@ -32,6 +32,10 @@ function normalize(str){
   return str;
 }
 
+function isCordova() {
+  return typeof cordova !== 'undefined' && cordova.platformId !== 'browser';
+}
+
 var transferQueue = [], // queued fileTransfers
     inprogress = 0;     // currently active filetransfers
 
@@ -51,8 +55,9 @@ module.exports = function(options){
   options.retry = options.retry || [];
 
   /* Cordova deviceready promise */
-  var deviceready, isCordova = typeof cordova !== 'undefined';
-  if(isCordova){
+  var deviceready;
+
+  if(isCordova()){
     deviceready = new Promise(function(resolve,reject){
       document.addEventListener("deviceready", resolve, false);
       setTimeout(function(){ reject(new Error('deviceready has not fired after 5 seconds.')); },5100);
@@ -103,12 +108,12 @@ module.exports = function(options){
         type = options.fileSystem;
       }
       // Chrome only supports persistent and temp storage, not the exotic onces from Cordova
-      if(!isCordova && type > 1) {
+      if(!isCordova() && type > 1) {
         console.warn('Chrome does not support fileSystem "'+type+'". Falling back on "0" (temporary).');
         type = 0;
       }
       // On chrome, request quota to store persistent files
-      if (!isCordova && type === 1 && navigator.webkitPersistentStorage) {
+      if (!isCordova() && type === 1 && navigator.webkitPersistentStorage) {
         navigator.webkitPersistentStorage.requestQuota(options.storageSize, function(grantedBytes) {
           window.requestFileSystem(type, grantedBytes, resolve, reject);
         });
@@ -260,7 +265,7 @@ module.exports = function(options){
 
   /* convert path to URL to be used in JS/CSS/HTML */
   var toInternalURL,toInternalURLSync;
-  if(isCordova) {
+  if(isCordova()) {
     /* synchronous helper to get internal URL. */
     toInternalURLSync = function(path){
       path = normalize(path);
@@ -438,7 +443,7 @@ module.exports = function(options){
       onprogress = transferOptions;
       transferOptions = {};
     }
-    if(isCordova && localPath.indexOf('://') < 0) localPath = toInternalURLSync(localPath);
+    if(isCordova() && localPath.indexOf('://') < 0) localPath = toInternalURLSync(localPath);
 
     transferOptions = transferOptions || {};
     if(!transferOptions.retry || !transferOptions.retry.length) {
@@ -514,7 +519,7 @@ module.exports = function(options){
     download: download,
     upload: upload,
     toURL:toURL,
-    isCordova:isCordova,
+    isCordova:isCordova(),
     toInternalURLSync: toInternalURLSync,
     toInternalURL:toInternalURL,
     toDataURL:toDataURL,
