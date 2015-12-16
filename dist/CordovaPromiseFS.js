@@ -43,7 +43,7 @@ var CordovaPromiseFS =
 /************************************************************************/
 /******/ ([
 /* 0 */
-/***/ function(module, exports, __webpack_require__) {
+/***/ function(module, exports) {
 
 	/**
 	 * Static Private functions
@@ -79,6 +79,10 @@ var CordovaPromiseFS =
 	  return str;
 	}
 
+	function isCordova() {
+	  return typeof cordova !== 'undefined' && cordova.platformId !== 'browser';
+	}
+
 	var transferQueue = [], // queued fileTransfers
 	    inprogress = 0;     // currently active filetransfers
 
@@ -92,17 +96,18 @@ var CordovaPromiseFS =
 
 	  /* default options */
 	  this.options = options = options || {};
-	  options.persistent = options.persistent !== undefined? options.persistent: true;
+	  options.persistent = options.persistent !== undefined ? options.persistent : true;
 	  options.storageSize = options.storageSize || 20*1024*1024;
 	  options.concurrency = options.concurrency || 3;
 	  options.retry = options.retry || [];
 
 	  /* Cordova deviceready promise */
-	  var deviceready, isCordova = typeof cordova !== 'undefined';
-	  if(isCordova){
+	  var deviceready;
+
+	  if(isCordova()){
 	    deviceready = new Promise(function(resolve,reject){
 	      document.addEventListener("deviceready", resolve, false);
-	      setTimeout(function(){ reject(new Error('deviceready has not fired after 5 seconds.')); },5100);
+	      setTimeout(function(){ reject(new Error('deviceready has not fired after 5 seconds.')); }, 5100);
 	    });
 	  } else {
 	    /* FileTransfer implementation for Chrome */
@@ -110,7 +115,7 @@ var CordovaPromiseFS =
 	    if(typeof webkitRequestFileSystem !== 'undefined'){
 	      window.requestFileSystem = webkitRequestFileSystem;
 	      window.FileTransfer = function FileTransfer(){};
-	      FileTransfer.prototype.download = function download(url,file,win,fail) {
+	      FileTransfer.prototype.download = function download(url, file, win, fail) {
 	        var xhr = new XMLHttpRequest();
 	        xhr.open('GET', url);
 	        xhr.responseType = "blob";
@@ -129,7 +134,7 @@ var CordovaPromiseFS =
 	      window.ProgressEvent = function ProgressEvent(){};
 	      window.FileEntry = function FileEntry(){};
 	    } else {
-	      window.requestFileSystem = function(x,y,z,fail){
+	      window.requestFileSystem = function(x, y, z, fail){
 	        fail(new Error('requestFileSystem not supported!'));
 	      };
 	    }
@@ -143,19 +148,19 @@ var CordovaPromiseFS =
 	  }
 
 	  /* the filesystem! */
-	  var fs = new Promise(function(resolve,reject){
+	  var fs = new Promise(function(resolve, reject){
 	    deviceready.then(function(){
-	      var type = options.persistent? 1: 0;
+	      var type = options.persistent ? 1 : 0;
 	      if(typeof options.fileSystem === 'number'){
 	        type = options.fileSystem;
 	      }
 	      // Chrome only supports persistent and temp storage, not the exotic onces from Cordova
-	      if(!isCordova && type > 1) {
-	        console.warn('Chrome does not support fileSystem "'+type+'". Falling back on "0" (temporary).');
+	      if(!isCordova() && type > 1) {
+	        console.warn('Chrome does not support fileSystem "' + type + '". Falling back on "0" (temporary).');
 	        type = 0;
 	      }
 	      // On chrome, request quota to store persistent files
-	      if (!isCordova && type === 1 && navigator.webkitPersistentStorage) {
+	      if (!isCordova() && type === 1 && navigator.webkitPersistentStorage) {
 	        navigator.webkitPersistentStorage.requestQuota(options.storageSize, function(grantedBytes) {
 	          window.requestFileSystem(type, grantedBytes, resolve, reject);
 	        });
@@ -184,7 +189,7 @@ var CordovaPromiseFS =
 	            folders = folders.split('/').filter(function(folder) {
 	              return folder && folder.length > 0 && folder !== '.' && folder !== '..';
 	            });
-	            __createDir(fs.root,folders,resolve,reject);
+	            __createDir(fs.root, folders, resolve, reject);
 	          }
 	        },reject);
 	    });
@@ -192,35 +197,35 @@ var CordovaPromiseFS =
 
 	    /* get file file */
 	  function file(path,options){
-	    return new Promise(function(resolve,reject){
+	    return new Promise(function(resolve, reject){
 	      if(typeof path === 'object') {
 	        return resolve(path);
 	      }
 	      path = normalize(path);
 	      options = options || {};
 	      return fs.then(function(fs){
-	        fs.root.getFile(path,options,resolve,reject);
+	        fs.root.getFile(path, options, resolve, reject);
 	      },reject);
 	    });
 	  }
 
 	  /* get directory entry */
-	  function dir(path,options){
+	  function dir(path, options){
 	    path = normalize(path);
 	    options = options || {};
-	    return new Promise(function(resolve,reject){
+	    return new Promise(function(resolve, reject){
 	      return fs.then(function(fs){
 	        if(!path || path === '/') {
 	          resolve(fs.root);
 	        } else {
-	          fs.root.getDirectory(path,options,resolve,reject);
+	          fs.root.getDirectory(path, options, resolve, reject);
 	        }
 	      },reject);
 	    });
 	  }
 
 	  /* list contents of a directory */
-	  function list(path,mode) {
+	  function list(path, mode) {
 	    mode = mode || '';
 	    var recursive = mode.indexOf('r') > -1;
 	    var getAsEntries = mode.indexOf('e') > -1;
@@ -231,7 +236,7 @@ var CordovaPromiseFS =
 	      onlyDirs = false;
 	    }
 
-	    return new Promise(function(resolve,reject){
+	    return new Promise(function(resolve, reject){
 	      return dir(path).then(function(dirEntry){
 	        var dirReader = dirEntry.createReader();
 	        dirReader.readEntries(function(entries) {
@@ -240,12 +245,12 @@ var CordovaPromiseFS =
 	            entries
 	              .filter(function(entry){return entry.isDirectory; })
 	              .forEach(function(entry){
-	                promises.push(list(entry.fullPath,'re'));
+	                promises.push(list(entry.fullPath, 're'));
 	              });
 	          }
 	          Promise.all(promises).then(function(values){
 	              var entries = [];
-	              entries = entries.concat.apply(entries,values);
+	              entries = entries.concat.apply(entries, values);
 	              if(onlyFiles) entries = entries.filter(function(entry) { return entry.isFile; });
 	              if(onlyDirs) entries = entries.filter(function(entry) { return entry.isDirectory; });
 	              if(!getAsEntries) entries = entries.map(function(entry) { return entry.fullPath; });
@@ -258,7 +263,7 @@ var CordovaPromiseFS =
 
 	  /* does file exist? If so, resolve with fileEntry, if not, resolve with false. */
 	  function exists(path){
-	    return new Promise(function(resolve,reject){
+	    return new Promise(function(resolve, reject){
 	      file(path).then(
 	        function(fileEntry){
 	          resolve(fileEntry);
@@ -276,7 +281,7 @@ var CordovaPromiseFS =
 
 	  /* does dir exist? If so, resolve with fileEntry, if not, resolve with false. */
 	  function existsDir(path){
-	    return new Promise(function(resolve,reject){
+	    return new Promise(function(resolve, reject){
 	      dir(path).then(
 	        function(dirEntry){
 	          resolve(dirEntry);
@@ -307,11 +312,11 @@ var CordovaPromiseFS =
 
 	  /* convert path to URL to be used in JS/CSS/HTML */
 	  var toInternalURL,toInternalURLSync;
-	  if(isCordova) {
+	  if(isCordova()) {
 	    /* synchronous helper to get internal URL. */
 	    toInternalURLSync = function(path){
 	      path = normalize(path);
-	      return path.indexOf('://') < 0? 'cdvfile://localhost/'+(options.persistent? 'persistent/':'temporary/') + path: path;
+	      return path.indexOf('://') < 0 ? 'cdvfile://localhost/'+(options.persistent ? 'persistent/' :'temporary/') + path : path;
 	    };
 
 	    toInternalURL = function(path) {
@@ -323,7 +328,7 @@ var CordovaPromiseFS =
 	    /* synchronous helper to get internal URL. */
 	    toInternalURLSync = function(path){
 	      path = normalize(path);
-	      return 'filesystem:'+location.origin+(options.persistent? '/persistent/':'/temporary/') + path;
+	      return 'filesystem:' + location.origin + (options.persistent ? '/persistent/' : '/temporary/') + path;
 	    };
 
 	    toInternalURL = function(path) {
@@ -334,10 +339,10 @@ var CordovaPromiseFS =
 	  }
 
 	  /* return contents of a file */
-	  function read(path,method) {
+	  function read(path, method) {
 	    method = method || 'readAsText';
 	    return file(path).then(function(fileEntry) {
-	      return new Promise(function(resolve,reject){
+	      return new Promise(function(resolve, reject){
 	        fileEntry.file(function(file){
 	          var reader = new FileReader();
 	          reader.onloadend = function(){
@@ -360,18 +365,18 @@ var CordovaPromiseFS =
 	  }
 
 	  /* write contents to a file */
-	  function write(path,blob,mimeType) {
+	  function write(path, blob, mimeType) {
 	    return ensure(dirname(path))
-	      .then(function() { return file(path,{create:true}); })
+	      .then(function() { return file(path, {create:true}); })
 	      .then(function(fileEntry) {
-	        return new Promise(function(resolve,reject){
+	        return new Promise(function(resolve, reject){
 	          fileEntry.createWriter(function(writer){
 	            writer.onwriteend = resolve;
 	            writer.onerror = reject;
 	            if(typeof blob === 'string') {
 	              blob = new Blob([blob],{type: mimeType || 'text/plain'});
 	            } else if(blob instanceof Blob !== true){
-	              blob = new Blob([JSON.stringify(blob,null,4)],{type: mimeType || 'application/json'});
+	              blob = new Blob([JSON.stringify(blob, null, 4)], {type: mimeType || 'application/json'});
 	            }
 	            writer.write(blob);
 	          },reject);
@@ -380,26 +385,26 @@ var CordovaPromiseFS =
 	    }
 
 	  /* move a file */
-	  function move(src,dest) {
+	  function move(src, dest) {
 	    return ensure(dirname(dest))
 	      .then(function(dir) {
 	        return file(src).then(function(fileEntry){
-	          return new Promise(function(resolve,reject){
-	            fileEntry.moveTo(dir,filename(dest),resolve,reject);
+	          return new Promise(function(resolve, reject){
+	            fileEntry.moveTo(dir, filename(dest), resolve, reject);
 	          });
 	        });
 	      });
 	  }
 
 	  /* move a dir */
-	  function moveDir(src,dest) {
+	  function moveDir(src, dest) {
 	    src = src.replace(/\/$/, '');
 	    dest = dest.replace(/\/$/, '');
 	    return ensure(dirname(dest))
 	      .then(function(destDir) {
 	        return dir(src).then(function(dirEntry){
-	          return new Promise(function(resolve,reject){
-	            dirEntry.moveTo(destDir,filename(dest),resolve,reject);
+	          return new Promise(function(resolve, reject){
+	            dirEntry.moveTo(destDir, filename(dest), resolve, reject);
 	          });
 	        });
 	      });
@@ -410,34 +415,34 @@ var CordovaPromiseFS =
 	    return ensure(dirname(dest))
 	      .then(function(dir) {
 	        return file(src).then(function(fileEntry){
-	          return new Promise(function(resolve,reject){
-	            fileEntry.copyTo(dir,filename(dest),resolve,reject);
+	          return new Promise(function(resolve, reject){
+	            fileEntry.copyTo(dir, filename(dest), resolve, reject);
 	          });
 	        });
 	      });
 	  }
 
 	  /* delete a file */
-	  function remove(path,mustExist) {
-	    var method = mustExist? file:exists;
-	    return new Promise(function(resolve,reject){
+	  function remove(path, mustExist) {
+	    var method = mustExist ? file : exists;
+	    return new Promise(function(resolve, reject){
 	        method(path).then(function(fileEntry){
 	        if(fileEntry !== false) {
-	          fileEntry.remove(resolve,reject);
+	          fileEntry.remove(resolve, reject);
 	        } else {
 	          resolve(1);
 	        }
 	      },reject);
 	    }).then(function(val){
-	      return val === 1? false: true;
+	      return val === 1 ? false : true;
 	    });
 	  }
 
 	  /* delete a directory */
 	  function removeDir(path) {
 	    return dir(path).then(function(dirEntry){
-	      return new Promise(function(resolve,reject) {
-	        dirEntry.removeRecursively(resolve,reject);
+	      return new Promise(function(resolve, reject) {
+	        dirEntry.removeRecursively(resolve, reject);
 	      });
 	    });
 	  }
@@ -463,10 +468,10 @@ var CordovaPromiseFS =
 	      if(ft._aborted) {
 	        inprogress--;
 	      } else if(isDownload){
-	        ft.download.call(ft,serverUrl,localPath,win,fail,trustAllHosts,transferOptions);
+	        ft.download.call(ft, serverUrl, localPath, win, fail, trustAllHosts, transferOptions);
 	        if(ft.onprogress) ft.onprogress(new ProgressEvent());
 	      } else {
-	        ft.upload.call(ft,localPath,serverUrl,win,fail,transferOptions,trustAllHosts);
+	        ft.upload.call(ft, localPath, serverUrl, win, fail, transferOptions, trustAllHosts);
 	      }
 	    }
 	    // if we are at max concurrency, popTransferQueue() will be called whenever
@@ -480,12 +485,12 @@ var CordovaPromiseFS =
 	    return result;
 	  }
 
-	  function filetransfer(isDownload,serverUrl,localPath,transferOptions,onprogress){
+	  function filetransfer(isDownload, serverUrl, localPath, transferOptions, onprogress){
 	    if(typeof transferOptions === 'function') {
 	      onprogress = transferOptions;
 	      transferOptions = {};
 	    }
-	    if(isCordova && localPath.indexOf('://') < 0) localPath = toInternalURLSync(localPath);
+	    if(isCordova() && localPath.indexOf('://') < 0) localPath = toInternalURLSync(localPath);
 
 	    transferOptions = transferOptions || {};
 	    if(!transferOptions.retry || !transferOptions.retry.length) {
@@ -499,15 +504,15 @@ var CordovaPromiseFS =
 	    var ft = new FileTransfer();
 	    onprogress = onprogress || transferOptions.onprogress;
 	    if(typeof onprogress === 'function') ft.onprogress = onprogress;
-	    var promise = new Promise(function(resolve,reject){
+	    var promise = new Promise(function(resolve, reject){
 	      var attempt = function(err){
 	        if(transferOptions.retry.length === 0) {
 	          reject(err);
 	        } else {
-	          transferQueue.unshift([ft,isDownload,serverUrl,localPath,resolve,attempt,transferOptions.trustAllHosts || false,transferOptions]);
+	          transferQueue.unshift([ft, isDownload, serverUrl, localPath, resolve, attempt, transferOptions.trustAllHosts || false, transferOptions]);
 	          var timeout = transferOptions.retry.shift();
 	          if(timeout > 0) {
-	            setTimeout(nextTransfer,timeout);
+	            setTimeout(nextTransfer, timeout);
 	          } else {
 	            nextTransfer();
 	          }
@@ -517,7 +522,7 @@ var CordovaPromiseFS =
 	      inprogress++;
 	      attempt();
 	    });
-	    promise.then(nextTransfer,nextTransfer);
+	    promise.then(nextTransfer, nextTransfer);
 	    promise.progress = function(onprogress){
 	      ft.onprogress = onprogress;
 	      return promise;
@@ -530,12 +535,12 @@ var CordovaPromiseFS =
 	    return promise;
 	  }
 
-	  function download(url,dest,options,onprogress){
-	    return filetransfer(true,url,dest,options,onprogress);
+	  function download(url, dest, options, onprogress){
+	    return filetransfer(true, url, dest, options, onprogress);
 	  }
 
-	  function upload(source,dest,options,onprogress){
-	    return filetransfer(false,dest,source,options,onprogress);
+	  function upload(source, dest, options, onprogress){
+	    return filetransfer(false, dest, source, options, onprogress);
 	  }
 
 	  return {
@@ -560,11 +565,11 @@ var CordovaPromiseFS =
 	    existsDir: existsDir,
 	    download: download,
 	    upload: upload,
-	    toURL:toURL,
-	    isCordova:isCordova,
+	    toURL: toURL,
+	    isCordova: isCordova(),
 	    toInternalURLSync: toInternalURLSync,
-	    toInternalURL:toInternalURL,
-	    toDataURL:toDataURL,
+	    toInternalURL: toInternalURL,
+	    toDataURL: toDataURL,
 	    deviceready: deviceready,
 	    options: options,
 	    Promise: Promise
